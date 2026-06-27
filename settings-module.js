@@ -5,47 +5,65 @@ class SettingsModule {
         this.currentSection = 'profile';
         this.userData = null;
         this.encodedPhone = null;
+        this.handlePasswordChange = this.handlePasswordChange.bind(this);
     }
 
     // ========== 2. INITIALIZATION ==========
-    async initSettings() {
-        try {
-            const authModule = window.authModule;
+async initSettings() {
+    try {
+        const authModule = window.authModule;
+        
+        if (authModule && authModule.isAuthenticated) {
+            this.userData = authModule.currentUser;
+            // ---- NORMALIZE ON LOAD ----
+            if (this.userData && this.userData.phone) {
+                try {
+                    this.getEncodedPhone(); // normalizes and updates if needed
+                } catch (e) {
+                    console.warn('Phone normalization failed:', e.message);
+                }
+            }
+            this.encodedPhone = this.encodePhone(this.userData.phone);
+            this.masterDB = authModule.masterDB;
             
-            if (authModule && authModule.isAuthenticated) {
-                this.userData = authModule.currentUser;
-                this.encodedPhone = this.encodePhone(this.userData.phone);
-                this.masterDB = authModule.masterDB;
-                
-                console.log('Settings module initialized with auth module data');
-            } else {
-                this.loadUserDataFromStorage();
-                
-                if (authModule && authModule.masterDB) {
-                    this.masterDB = authModule.masterDB;
-                } else {
-                    const masterDBConfig = localStorage.getItem('masterDBConfig');
-                    if (masterDBConfig) {
-                        const config = JSON.parse(masterDBConfig);
-                        try {
-                            const masterApp = firebase.initializeApp(
-                                { databaseURL: config.databaseURL }, 
-                                "settingsMaster"
-                            );
-                            this.masterDB = masterApp.database();
-                        } catch (error) {
-                            this.masterDB = firebase.apps[0]?.database();
-                        }
-                    }
+            console.log('Settings module initialized with auth module data');
+        } else {
+            this.loadUserDataFromStorage();
+            
+            // ---- NORMALIZE ON LOAD FROM STORAGE ----
+            if (this.userData && this.userData.phone) {
+                try {
+                    this.getEncodedPhone();
+                } catch (e) {
+                    console.warn('Phone normalization failed:', e.message);
                 }
             }
             
-            return true;
-        } catch (error) {
-            console.error('Error initializing settings module:', error);
-            return false;
+            if (authModule && authModule.masterDB) {
+                this.masterDB = authModule.masterDB;
+            } else {
+                const masterDBConfig = localStorage.getItem('masterDBConfig');
+                if (masterDBConfig) {
+                    const config = JSON.parse(masterDBConfig);
+                    try {
+                        const masterApp = firebase.initializeApp(
+                            { databaseURL: config.databaseURL }, 
+                            "settingsMaster"
+                        );
+                        this.masterDB = masterApp.database();
+                    } catch (error) {
+                        this.masterDB = firebase.apps[0]?.database();
+                    }
+                }
+            }
         }
+        
+        return true;
+    } catch (error) {
+        console.error('Error initializing settings module:', error);
+        return false;
     }
+}
 
     // Add helper method to ensure navbar shows correct active state
     ensureNavbarActiveState() {
@@ -157,7 +175,7 @@ class SettingsModule {
             if (userDataStr) {
                 this.userData = JSON.parse(userDataStr);
                 if (this.userData?.phone) {
-                    this.encodedPhone = this.encodePhone(this.userData.phone);
+                    this.encodedPhone = this.getEncodedPhone();
                     this.userHomeDatabaseUrl = this.userData.homeDatabaseUrl || 
                                             localStorage.getItem('userHomeDatabaseUrl');
                     this.userHomeDatabase = this.extractDbNameFromUrl(this.userHomeDatabaseUrl);
@@ -432,7 +450,7 @@ class SettingsModule {
                                         Required
                                     </div>
                                 </div>
-                                <div class="section-card-content" id="passwordForm">
+                                <form class="section-card-content" id="passwordForm">
                                     <div class="form-row">
                                         <div class="form-group">
                                             <label class="form-label" for="currentPassword">Current Password</label>
@@ -481,7 +499,7 @@ class SettingsModule {
                                             Cancel
                                         </button>
                                     </div>
-                                </div>
+                                </form>
                             </div>
                             <div class="info">
                                 <div class="info-header">
@@ -850,100 +868,104 @@ class SettingsModule {
         }
     }
 
-    async handlePasswordChange(e) {
-        e.preventDefault();
+async handlePasswordChange(e) {
+    e.preventDefault(); // Prevent page reload
 
-        if (!this.checkAccountStatus()) {
-            return;
-        }
-        
-        const authModule = window.authModule;
-        if (!authModule || !authModule.masterDB) {
-            this.showError('Authentication module not available. Please refresh the page.');
-            return;
-        }
+    console.log('handlePasswordChange called');
 
-        const currentPassword = document.getElementById('currentPassword').value;
-        const newPassword = document.getElementById('newPassword').value;
-        const confirmPassword = document.getElementById('confirmPassword').value;
-
-        if (!currentPassword || !newPassword || !confirmPassword) {
-            this.showError('Please fill in all password fields.');
-            return;
-        }
-
-        if (newPassword.length < 6) {
-            this.showError('New password must be at least 6 characters.');
-            return;
-        }
-
-        if (newPassword !== confirmPassword) {
-            this.showError('New passwords do not match.');
-            return;
-        }
-
-        if (currentPassword === newPassword) {
-            this.showError('New password must be different from current password.');
-            return;
-        }
-
-        try {
-            this.showLoading('changePasswordBtn', 'Verifying...');
-            this.hideMessages();
-
-            const encodedPhone = this.encodePhone(this.userData.phone);
-            
-            const userRef = authModule.masterDB.ref(`users/${encodedPhone}`);
-            const userSnapshot = await userRef.once('value');
-            
-            if (!userSnapshot.exists()) {
-                throw new Error('User account not found');
-            }
-
-            const userData = userSnapshot.val();
-            
-            if (userData.password !== currentPassword) {
-                throw new Error('Current password is incorrect');
-            }
-
-            this.showLoading('changePasswordBtn', 'Updating...');
-            
-            const updateData = {
-                password: newPassword,
-                passwordUpdatedAt: firebase.database.ServerValue.TIMESTAMP,
-                updatedAt: firebase.database.ServerValue.TIMESTAMP
-            };
-
-            await userRef.update(updateData);
-
-            this.userData.password = newPassword;
-            this.userData.passwordUpdatedAt = Date.now();
-            this.userData.updatedAt = Date.now();
-            
-            localStorage.setItem('currentUser', JSON.stringify(this.userData));
-
-            if (authModule.currentUser) {
-                authModule.currentUser.password = newPassword;
-                authModule.currentUser.passwordUpdatedAt = Date.now();
-                authModule.currentUser.updatedAt = Date.now();
-            }
-
-            await this.logPasswordChange(encodedPhone);
-
-            this.showSuccess('Password changed successfully!');
-            this.resetPasswordForm();
-
-            setTimeout(() => {
-                this.showSection('profile');
-            }, 1500);
-
-        } catch (error) {
-            console.error('Password change error:', error);
-            this.showError(error.message || 'Failed to change password. Please try again.');
-        } finally {
-            this.hideLoading('changePasswordBtn', 'Change Password');
-        }
+    if (!this.checkAccountStatus()) {
+        return;
     }
+
+    const authModule = window.authModule;
+    if (!authModule || !authModule.masterDB) {
+        this.showError('Authentication module not available. Please refresh the page.');
+        return;
+    }
+
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+        this.showError('Please fill in all password fields.');
+        return;
+    }
+
+    if (newPassword.length < 6) {
+        this.showError('New password must be at least 6 characters.');
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+        this.showError('New passwords do not match.');
+        return;
+    }
+
+    if (currentPassword === newPassword) {
+        this.showError('New password must be different from current password.');
+        return;
+    }
+
+    try {
+        this.showLoading('changePasswordBtn', 'Verifying...');
+        this.hideMessages();
+
+        // ---- Use the normalized encoded phone ----
+        const encodedPhone = this.getEncodedPhone();
+        console.log('Encoded phone for password change:', encodedPhone);
+
+        const userRef = authModule.masterDB.ref(`users/${encodedPhone}`);
+        const userSnapshot = await userRef.once('value');
+
+        if (!userSnapshot.exists()) {
+            throw new Error('User account not found');
+        }
+
+        const userData = userSnapshot.val();
+
+        if (userData.password !== currentPassword) {
+            throw new Error('Current password is incorrect');
+        }
+
+        this.showLoading('changePasswordBtn', 'Updating...');
+
+        const updateData = {
+            password: newPassword,
+            passwordUpdatedAt: firebase.database.ServerValue.TIMESTAMP,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        };
+
+        await userRef.update(updateData);
+
+        // Update local user data
+        this.userData.password = newPassword;
+        this.userData.passwordUpdatedAt = Date.now();
+        this.userData.updatedAt = Date.now();
+        localStorage.setItem('currentUser', JSON.stringify(this.userData));
+
+        if (authModule.currentUser) {
+            authModule.currentUser.password = newPassword;
+            authModule.currentUser.passwordUpdatedAt = Date.now();
+            authModule.currentUser.updatedAt = Date.now();
+        }
+
+        await this.logPasswordChange(encodedPhone);
+
+        this.showSuccess('Password changed successfully!');
+        this.resetPasswordForm();
+
+        setTimeout(() => {
+            this.showSection('profile');
+        }, 1500);
+
+    } catch (error) {
+        console.error('Password change error:', error);
+        this.showError(error.message || 'Failed to change password. Please try again.');
+    } finally {
+        this.hideLoading('changePasswordBtn', 'Change Password');
+    }
+}
 
     populateFormData() {
         if (!this.userData) return;
@@ -1145,7 +1167,7 @@ class SettingsModule {
         try {
             const authModule = window.authModule;
             if (authModule && authModule.isLoggedIn()) {
-                const encodedPhone = this.encodePhone(this.userData.phone);
+                const encodedPhone = this.getEncodedPhone();
                 const snapshot = await authModule.masterDB.ref(`users/${encodedPhone}/recoveryCodes`).once('value');
                 
                 if (snapshot.exists()) {
@@ -1220,7 +1242,7 @@ class SettingsModule {
                 throw new Error('Authentication module not available');
             }
             
-            const encodedPhone = this.encodePhone(this.userData.phone);
+            const encodedPhone = this.getEncodedPhone();
             const userRef = authModule.masterDB.ref(`users/${encodedPhone}`);
             const userSnapshot = await userRef.once('value');
             
@@ -1406,7 +1428,7 @@ class SettingsModule {
                 throw new Error('Authentication module not available');
             }
             
-            const encodedPhone = this.encodePhone(this.userData.phone);
+            const encodedPhone = this.getEncodedPhone();
             
             const userRef = authModule.masterDB.ref(`users/${encodedPhone}`);
             const userSnapshot = await userRef.once('value');
@@ -1500,7 +1522,7 @@ class SettingsModule {
                 throw new Error('Authentication module not available');
             }
 
-            const encodedPhone = this.encodePhone(this.userData.phone);
+            const encodedPhone = this.getEncodedPhone();
             
             const userRef = authModule.masterDB.ref(`users/${encodedPhone}`);
             const userSnapshot = await userRef.once('value');
@@ -1649,7 +1671,7 @@ class SettingsModule {
         const button = document.getElementById(buttonId);
         if (button) {
             button.disabled = true;
-            button.innerHTML = `<span class="loading-spinner"></span> ${text}`;
+            button.innerHTML = `${text}`;
         }
     }
 
@@ -1735,7 +1757,7 @@ class SettingsModule {
             const passwordForm = document.getElementById('passwordForm');
             if (passwordForm) {
                 passwordForm.removeEventListener('submit', this.handlePasswordChange);
-                passwordForm.addEventListener('submit', (e) => this.handlePasswordChange(e));
+                passwordForm.addEventListener('submit', this.handlePasswordChange);
             }
 
             // ---------- Password Visibility Toggles ----------
@@ -2012,6 +2034,34 @@ class SettingsModule {
         this.userData = null;
         console.log('Logout initiated');
     }
+
+    // ========== 15. NORMALIZED PHONE ENCODING ==========
+getEncodedPhone() {
+    if (!this.userData || !this.userData.phone) {
+        throw new Error('User phone not available');
+    }
+    // Ensure PhoneValidator is available
+    if (typeof PhoneValidator === 'undefined') {
+        console.warn('PhoneValidator not loaded, falling back to raw encode');
+        return this.getEncodedPhone();
+    }
+    const validation = PhoneValidator.validatePhone(this.userData.phone);
+    if (!validation.valid) {
+        throw new Error('Invalid phone number: ' + validation.reason);
+    }
+    const normalized = validation.normalized;
+    // Update stored phone if it changed
+    if (this.userData.phone !== normalized) {
+        console.log(`Normalizing phone: ${this.userData.phone} → ${normalized}`);
+        this.userData.phone = normalized;
+        localStorage.setItem('currentUser', JSON.stringify(this.userData));
+        // Also update authModule if present
+        if (window.authModule && window.authModule.currentUser) {
+            window.authModule.currentUser.phone = normalized;
+        }
+    }
+    return this.encodePhone(normalized);
+}
 }
 
 // Initialize settings module
