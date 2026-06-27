@@ -467,11 +467,20 @@ class xDriveApp {
                 throw new Error('User not logged in');
             }
             
-            const userEmail = authModule.currentUser.email;
-            const encodedEmail = authModule.encodeEmail(userEmail);
+            const rawPhone = authModule.currentUser.phone;
             const masterDB = authModule.masterDB;
             
-            const userSnapshot = await masterDB.ref(`users/${encodedEmail}`).once('value');
+            // 🔹 Try with raw phone first (compatibility)
+            let encodedPhone = authModule.encodePhone(rawPhone);
+            let userSnapshot = await masterDB.ref(`users/${encodedPhone}`).once('value');
+            
+            // 🔹 If not found, try normalizing the phone (fixes stale data)
+            if (!userSnapshot.exists()) {
+                console.warn('User not found with raw phone, trying normalized...');
+                const normalized = PhoneValidator.validatePhone(rawPhone)?.normalized || rawPhone;
+                encodedPhone = authModule.encodePhone(normalized);
+                userSnapshot = await masterDB.ref(`users/${encodedPhone}`).once('value');
+            }
             
             if (!userSnapshot.exists()) {
                 throw new Error('User account not found');
@@ -481,6 +490,12 @@ class xDriveApp {
             
             if (userData.password !== password) {
                 throw new Error('Incorrect password. Please try again.');
+            }
+            
+            // Also update the currentUser with normalized phone for future use
+            if (userData.phone !== rawPhone) {
+                authModule.currentUser.phone = userData.phone;
+                localStorage.setItem('currentUser', JSON.stringify(authModule.currentUser));
             }
             
             this.secureVaultUnlocked = true;
