@@ -10,12 +10,15 @@
         <link rel="stylesheet" href="index-styles.css">
         <link rel="stylesheet" href="auth-styles.css">
         <link rel="stylesheet" href="photos-styles.css">
+        <!--
         <link rel="stylesheet" href="notes-styles.css">
         <link rel="stylesheet" href="credential-styles.css">
+        <link rel="stylesheet" href="share-styles.css">
+        -->
         <link rel="stylesheet" href="text-to-emoji-styles.css">
         <link rel="stylesheet" href="text-repeater-styles.css">
         <link rel="stylesheet" href="settings-styles.css">
-        <link rel="stylesheet" href="share-styles.css">
+        
     </head>
     <body data-theme="dark">
         <!-- TOP NAVIGATION BAR -->
@@ -55,6 +58,7 @@
                         <span class="material-icons menu-icon">photo_library</span>
                     </a>
                 </li>
+                <!--
                 <li class="menu-item secure-module" data-page="notes">
                     <a href="#notes" class="menu-link" data-tooltip="Notes (Secure)">
                         <span class="material-icons menu-icon">notes</span>
@@ -70,6 +74,7 @@
                         <span class="material-icons menu-icon">share</span>
                     </a>
                 </li>
+                -->
                 <li class="menu-item secure-module" data-page="settings">
                     <a href="#settings" class="menu-link" data-tooltip="Settings (Secure)">
                         <span class="material-icons menu-icon">settings</span>
@@ -99,12 +104,6 @@
             <section id="photos-page" class="page-section">
                 <div id="photos-container"></div>
             </section>
-            <section id="notes-page" class="page-section">
-                <div id="notes-container"></div>
-            </section>
-            <section id="credentials-page" class="page-section">
-                <div id="credentials-container"></div>
-            </section>
             <section id="emoji-art-page" class="page-section">
                 <div id="emoji-art-container"></div>
             </section>
@@ -114,9 +113,17 @@
             <section id="settings-page" class="page-section">
                 <div id="settings-container"></div>
             </section>
+            <!--
+            <section id="notes-page" class="page-section">
+                <div id="notes-container"></div>
+            </section>
+            <section id="credentials-page" class="page-section">
+                <div id="credentials-container"></div>
+            </section>
             <section id="share-page" class="page-section">
                 <div id="share-container"></div>
             </section>
+            -->
         </main>
 
         <!-- Firebase SDK -->
@@ -132,11 +139,13 @@
         
         <!-- Include Modules -->
         <script src="photos-module.js"></script>
+        <script src="phone-validator.js"></script>
+        <!--
         <script src="notes-module.js"></script>
         <script src="text-to-emoji-module.js"></script>
         <script src="text-repeater-module.js"></script>
         <script src="credential-manager.js"></script>
         <script src="share-module.js"></script>
-        <script src="phone-validator.js"></script>
+        -->
     </body>
 </html>
