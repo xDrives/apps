@@ -7,10 +7,11 @@ class xDriveApp {
         this.userData = null;
         
         // Define general modules (accessible without lock)
-        this.generalModules = ['emoji-art', 'text-repeater', 'photos', 'notes', 'share', 'credential', 'settings'];
+        this.generalModules = ['emoji-art', 'text-repeater'];
         
         // Define secure modules (require account password)
-        this.secureModules = [];
+        this.secureModules = ['photos', 'settings'];
+        //this.secureModules = ['photos', 'notes', 'share', 'credential', 'settings'];
         
         // Track secure access state
         this.secureVaultUnlocked = false;
@@ -29,9 +30,9 @@ class xDriveApp {
         // Home module properties
         this.modules = [
             { id: 'photos', name: 'Photos', icon: 'photo_library', color: 'secondary', description: 'Secure photo storage', category: 'secure' },
-            { id: 'notes', name: 'Notes', icon: 'notes', color: 'secondary', description: 'Secure encrypted notes', category: 'secure' },
-            { id: 'credentials', name: 'Credentials', icon: 'vpn_key', color: 'secondary', description: 'Password manager', category: 'secure' },
-            { id: 'share', name: 'Share', icon: 'share', color: 'secondary', description: 'Share content securely', category: 'secure' }, 
+            //{ id: 'notes', name: 'Notes', icon: 'notes', color: 'secondary', description: 'Secure encrypted notes', category: 'secure' },
+            //{ id: 'credentials', name: 'Credentials', icon: 'vpn_key', color: 'secondary', description: 'Password manager', category: 'secure' },
+            //{ id: 'share', name: 'Share', icon: 'share', color: 'secondary', description: 'Share content securely', category: 'secure' }, 
             { id: 'settings', name: 'Settings', icon: 'settings', color: 'secondary', description: 'Account & security', category: 'secure' },
             { id: 'emoji-art', name: 'Emoji Art', icon: 'emoji_emotions', color: 'primary', description: 'Create emoji art', category: 'general' },
             { id: 'text-repeater', name: 'Text Repeater', icon: 'repeat', color: 'primary', description: 'Pattern text generator', category: 'general' }
