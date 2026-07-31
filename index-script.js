@@ -10,7 +10,7 @@ class xDriveApp {
         this.generalModules = ['emoji-art', 'text-repeater'];
         
         // Define secure modules (require account password)
-        this.secureModules = [ 'photos', 'credential', 'settings'];
+        this.secureModules = [ 'photos', 'credentials', 'settings'];
         
         // Track secure access state
         this.secureVaultUnlocked = false;
