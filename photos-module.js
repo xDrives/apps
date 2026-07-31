@@ -316,23 +316,6 @@ class PhotosModule {
         });
     }
 
-    // Get item from IndexedDB
-    async getFromIndexedDB(storeName, id) {
-        return new Promise((resolve, reject) => {
-            if (!this.db) {
-                reject(new Error('Database not initialized'));
-                return;
-            }
-            
-            const transaction = this.db.transaction([storeName], 'readonly');
-            const store = transaction.objectStore(storeName);
-            const request = store.get(id);
-            
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = (event) => reject(event.target.error);
-        });
-    }
-
     // Get all items from IndexedDB
     async getAllFromIndexedDB(storeName) {
         return new Promise((resolve, reject) => {
@@ -1859,53 +1842,52 @@ async confirmBatchDelete() {
         setTimeout(() => this.checkAndShowLimitWarning(), 1000);
     }
 
-    // HTML template
-// HTML template
-getPhotosHTML() {
-    return `
-        <div class="photos-container">
-            <div class="module-card">
-                <div class="module-icon" style="color: var(--primary);">
-                    <span class="material-icons">photo_library</span>
-                </div>
-                <div class="module-info">
-                    <div class="module-title">Photo Library</div>
-                    <div class="module-description">Secure photo storage and management</div>
-                </div>
-                <div class="module-actions">
-                    <div class="photo-count-badge" id="photoCountBadge" title="${this.photos.length} of ${this.uploadLimits.maxTotalPhotos} photos">
-                        <i class="fas fa-images"></i>
-                        <span>${this.photos.length}/${this.uploadLimits.maxTotalPhotos}</span>
+    // HTML template (updated to modern UI)
+    getPhotosHTML() {
+        return `
+            <div class="photos-container">
+                <div class="module-card">
+                    <div class="module-icon" style="color: var(--primary);">
+                        <i class="fas fa-image"></i>
                     </div>
-                    <button class="btn btn-primary" id="uploadPhotosBtn">
-                        <i class="fas fa-cloud-upload-alt"></i> Upload
-                    </button>
-                </div>
-            </div>             
-
-            <!-- Upload Section -->
-            <div class="upload-section" id="uploadSection" style="display: none;">
-                <div class="upload-content">
-                    <div class="upload-header">
-                        <h3 class="upload-title">Upload Photos</h3>
-                        <p>
-                            <i class="fas fa-info-circle"></i>
-                            Limits: Max ${this.uploadLimits.maxFilesPerUpload} files per upload, ${this.uploadLimits.maxFileSizeMB}MB per file
-                        </p>
+                    <div class="module-info">
+                        <div class="module-title">Photo Library</div>
+                        <div class="module-description">Secure photo storage and management</div>
                     </div>
-                    <div class="upload-body">
-                        <div class="upload-area" id="photoUploadArea">
-                            <i class="fas fa-cloud-upload-alt upload-icon"></i>
-                            <h4>Drop photos here or click to browse</h4>
-                            <p>Supported formats: JPG, PNG, GIF, WEBP</p>
-                            <input type="file" id="photoInput" multiple accept="image/*" style="display: none;">
-                            <button class="btn btn-primary" id="browseFilesBtn" type="button">
-                                <i class="fas fa-folder-open"></i> Browse Files
-                            </button>
+                    <div class="module-actions">
+                        <div class="photo-count-badge" id="photoCountBadge" title="${this.photos.length} of ${this.uploadLimits.maxTotalPhotos} photos">
+                            <i class="fas fa-images"></i>
+                            <span>${this.photos.length}/${this.uploadLimits.maxTotalPhotos}</span>
                         </div>
-                        
-                        <div class="file-preview" id="filePreview" style="display: none;"></div>
-                        
+                        <button class="btn btn-primary" id="uploadPhotosBtn">
+                            <i class="fas fa-cloud-upload-alt"></i> Upload
+                        </button>
+                    </div>
+                </div>             
+
+                <!-- Upload Section -->
+                <div class="section-card" id="uploadSection" style="display: none;">
+                    <div class="section-card-header">
+                        <div class="section-card-title">
+                            <i class="fas fa-list"></i> 
+                            <span>Selected Files</span>
+                        </div>
+                       <span class="section-card-badge">
+                            <i class="fas fa-info-circle"></i>
+                            <span id="fileSelectionInfo">0 / ${this.uploadLimits.maxFilesPerUpload} files selected</span>
+                            <span style="margin-left: 8px; opacity:0.6;">Max ${this.uploadLimits.maxFileSizeMB}MB each</span>
+                        </span>
+                    </div>
+                    <div class="section-card-content">
+                        <!-- Hidden file input -->
+                        <input type="file" id="photoInput" multiple accept="image/*" style="display: none;">
+
+                        <!-- File Preview -->
+                        <div class="file-preview" id="filePreview" style="display: none;">
+                            <div class="file-preview-grid" id="filePreviewGrid"></div>
+                        </div>
+
+                        <!-- Upload Progress -->
                         <div class="upload-progress" id="uploadProgress" style="display: none;">
                             <div class="progress-bar">
                                 <div class="progress-fill" id="progressFill"></div>
@@ -1914,186 +1896,140 @@ getPhotosHTML() {
                                 <span id="progressText">Uploading...</span>
                                 <span id="progressPercent">0%</span>
                             </div>
+                            <div class="progress-detail" id="progressDetail"></div>
+                        </div>
+
+                        <!-- Action buttons -->
+                        <div class="upload-actions">
+                            <button class="btn btn-primary" id="startUploadBtn" style="display: none;">
+                                <i class="fas fa-upload"></i> Start Upload
+                            </button>
+                            <button class="btn btn-secondary" id="cancelUploadBtn">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
                         </div>
                     </div>
-                    <div class="upload-actions">
-                        <button class="btn btn-primary" id="startUploadBtn" style="display: none;">
-                            <i class="fas fa-upload"></i> Start Upload
-                        </button>
-                        <button class="btn btn-secondary" id="cancelUploadBtn">
-                            Cancel
-                        </button>
-                    </div>
                 </div>
-            </div>
 
-            <!-- Album Management Section -->
-            <div class="album-management-section" id="albumModal" style="display: none;">
-                <div class="album-management-content">
-                    <div class="album-management-header">
-                        <h3 class="album-management-title" id="albumModalTitle">Create New Album</h3>
-                    </div>
-                    <div class="album-management-body">
-                        <div class="form-group">
-                            <label class="form-label" for="albumName">Album Name (max 7 characters, no spaces)</label>
-                            <input type="text" 
-                                id="albumName" 
-                                class="form-input" 
-                                placeholder="e.g., Vacation"
-                                maxlength="7"
-                                oninput="this.value = this.value.replace(/\\s/g, '')">
+                <!-- Album Management Section -->
+                <div class="section-card" id="albumModal" style="display: none;">
+                    <div class="section-card-header">
+                        <div class="section-card-title">
+                            <i class="fas fa-folder-plus" id="albumModalIcon"></i>
+                            <span id="albumModalTitle">Create New Album</span>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label" for="albumDescription">Description</label>
-                            <textarea id="albumDescription" class="form-textarea" rows="1" placeholder="Add a description"></textarea>
-                        </div>
+                        <span class="section-card-badge" id="albumModalBadge">New</span>
                     </div>
-                    
-                    <!-- Album Delete Confirmation (hidden by default) -->
-                    <div class="album-delete-confirmation-panel" id="albumDeleteConfirm" style="display: none;">
-                        <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-                            <div style="
-                                width: 32px;
-                                height: 32px;
-                                background: rgba(239, 68, 68, 0.15);
-                                border-radius: 8px;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                            ">
-                                <span class="material-icons" style="color: var(--danger, #ef4444); font-size: 18px;">warning</span>
-                            </div>
-                            <div>
-                                <div style="color: var(--f-label); font-size: 0.85rem; font-weight: 500;">
-                                    Are you sure you want to delete this Album?
-                                </div>
-                                <div style="color: var(--text-secondary, #a0a0b0); font-size: 0.7rem; margin-top: 2px;">
-                                    This will not delete the photos inside the album, but they will be moved to your main library.
-                                </div>
-                            </div>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 4px;">
-                            <button class="btn btn-danger confirm-album-delete-btn" id="confirmAlbumDeleteBtn"><i class="fas fa-trash"></i> Delete Album</button>
-                            <button class="btn btn-secondary" id="cancelAlbumDeleteBtn">Cancel</button>
-                        </div>
-                    </div>
-                    
-                    <div class="album-management-actions">
-                        <button class="btn btn-danger" id="deleteAlbumBtn" style="display: none;">
-                            <i class="fas fa-trash"></i> Delete Album
-                        </button>
-                        <div style="flex: 1;"></div>
-                        <button class="btn btn-primary" id="saveAlbumBtn"><i class="fas fa-folder-plus"></i> Create Album</button>
-                        <button class="btn btn-secondary" id="cancelAlbumBtn">Cancel</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="albums-section">
-                <div class="photo-section-header">
-                    <div class="section-title-info">
-                        <h3 class="" id="currentFilterTitle">Home</h3>
-                    </div>
-                    <div class="album-actions">
-                        <button class="btn btn-primary" id="manageAlbumBtn" style="display: none;">
-                            <i class="fas fa-edit"></i> Manage Album
-                        </button>
-                    </div>    
-                </div>
-                <div class="albums-grid" id="albumsGrid">
-                    <!-- Albums will be dynamically generated here -->
-                </div>
-            </div>
-
-            <div class="photo-section-header">
-                <p class="section-description" id="albumSectionDescription">Organize your photos into albums</p>
-                <div class="view-options">
-                    <span class="view-info" id="viewInfo">Showing all photos</span>
-                    <button class="btn btn-icon" id="toggleBlurBtn" title="Disable blur effect">
-                        <i class="fas fa-eye-slash" id="blurToggleIcon"></i>
-                    </button>
-                </div>
-            </div>
-
-            <div class="batch-actions-group" id="normalActions">
-                <button class="btn btn-icon" id="batchModeBtn" title="Select multiple photos">
-                    <i class="fas fa-check-square"></i> Select
-                </button>
-            </div>
-
-            <div class="batch-actions-group" id="batchActions" style="display: none;">
-                <span class="selection-count" id="selectionCount">No photos selected</span>
-                <button class="btn btn-primary" id="selectAllBtn" title="Select all photos">
-                    <i class="fas fa-check-double"></i> All
-                </button>
-                <button class="btn btn-danger" id="batchDeleteBtn" disabled>
-                    <i class="fas fa-trash-alt"></i> Delete Selected
-                </button>
-                <button class="btn btn-secondary" id="cancelBatchBtn">
-                    Cancel
-                </button>
-            </div>
-
-            <!-- Batch Delete Confirmation Panel (Inline) -->
-            <div class="batch-delete-panel" id="confirmBatchDelete" style="display: none;">
-                <div class="batch-confirmation-content">
-                    <div class="batch-delete-warning">
-                        <div style="
-                            width: 32px;
-                            height: 32px;
-                            background: rgba(239, 68, 68, 0.15);
-                            border-radius: 8px;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                        ">
-                            <span class="material-icons" style="color: var(--danger, #ef4444); font-size: 18px;">warning</span>
-                        </div>
-                        <span id="deleteMessage"></span>
-                    </div>
-                    <div class="batch-confirmation-actions">
-                        <button class="btn btn-danger" id="confirmBatchDeleteBtn"><i class="fas fa-trash"></i> Delete</button>
-                        <button class="btn btn-secondary" id="cancelBatchDeleteBtn"> Cancel</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Photo View Section (Inline like Album Management) -->
-            <div class="photo-view-section" id="photoViewSection" style="display: none;">
-                <div class="photo-view-content">
-                    <div class="photo-view-header">
-                        <div class="photo-view-title-info">
-                            <h3 class="photo-view-name" id="photoViewName"></h3>
-                            <div class="photo-view-meta">
-                                <span class="photo-view-date" id="photoViewDate"></span>
-                                <span class="photo-view-size" id="photoViewSize"></span>
-                                <span class="favorite-badge-view" id="favoriteBadgeView" style="display: none;">
-                                    <i class="fas fa-star"></i> Favorite
-                                </span>
-                            </div>
-                            <div class="photo-description-container">
+                    <div class="section-card-content">
+                        <div class="album-management-body">
+                            <div class="form-group">
+                                <label class="form-label" for="albumName">Album Name (max 7 characters, no spaces)</label>
                                 <input type="text" 
-                                    class="photo-description-input-view" 
-                                    id="photoDescriptionInput"
-                                    placeholder="Add a short description (max 100 chars)" 
-                                    maxlength="100"
-                                    value="">
-                                <span class="description-char-count-view" id="descriptionCharCount">0/100</span>
+                                    id="albumName" 
+                                    class="form-input" 
+                                    placeholder="e.g., Vacation"
+                                    maxlength="7"
+                                    oninput="this.value = this.value.replace(/\\s/g, '')">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="albumDescription">Description</label>
+                                <textarea id="albumDescription" class="form-textarea" rows="1" placeholder="Add a description"></textarea>
                             </div>
                         </div>
-                        <button class="close-photo-view" id="closePhotoViewBtn">
+                        <!-- Album Delete Confirmation (hidden by default) -->
+                        <div class="album-delete-confirmation-panel" id="albumDeleteConfirm" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                                <div style="
+                                    width: 32px;
+                                    height: 32px;
+                                    background: rgba(239, 68, 68, 0.15);
+                                    border-radius: 8px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                ">
+                                    <i class="fas fa-exclamation-triangle" style="color:var(--danger, #ef4444); font-size:18px;"></i>
+                                </div>
+                                <div>
+                                    <div style="color: var(--f-label); font-size: 0.85rem; font-weight: 500;">
+                                        Are you sure you want to delete this Album?
+                                    </div>
+                                    <div style="color: var(--text-secondary, #a0a0b0); font-size: 0.7rem; margin-top: 2px;">
+                                        This will not delete the photos inside the album, but they will be moved to your main library.
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 4px;">
+                                <button class="btn btn-danger confirm-album-delete-btn" id="confirmAlbumDeleteBtn"><i class="fas fa-trash"></i> Delete Album</button>
+                                <button class="btn btn-secondary" id="cancelAlbumDeleteBtn">Cancel</button>
+                            </div>
+                        </div>
+                        
+                        <div class="album-management-actions">
+                            <button class="btn btn-danger" id="deleteAlbumBtn" style="display: none;">
+                                <i class="fas fa-trash"></i> Delete Album
+                            </button>
+                            <div style="flex: 1;"></div>
+                            <button class="btn btn-primary" id="saveAlbumBtn"><i class="fas fa-folder-plus"></i> Create Album</button>
+                            <button class="btn btn-secondary" id="cancelAlbumBtn">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-card">
+                    <div class="section-card-header">
+                        <div class="section-card-title">
+                            <i class="fas fa-folder-open"></i>
+                            <span>Home</span>
+                        </div>
+                        <span class="section-card-badge">
+                            <span><button class="btn btn-primary" id="manageAlbumBtn" style="display: none;">
+                                <i class="fas fa-edit"></i> Manage Album
+                            </button></span>
+                        </span>
+                    </div>
+                    <div class="section-card-content">
+                        <div class="albums-grid" id="albumsGrid">
+                            <!-- Albums will be dynamically generated here -->
+                        </div>
+                    </div>
+                    <div class="section-card-footer">
+                        <p class="section-description" id="albumSectionDescription">Organize your photos into albums</p>
+                    </div>
+                </div>
+
+                <!-- Photo View Section (Inline like Album Management) -->
+                <div class="section-card photo-view-section" id="photoViewSection" style="display: none;">
+                    <div class="section-card-header">
+                        <div class="section-card-title">
+                            <i class="fas fa-image"></i>
+                            <span id="photoViewName">Photo</span>
+                        </div>
+                        <span class="section-card-badge">
+                            <span id="photoViewDate"></span>
+                            <span id="photoViewSize" style="margin-left: 8px;"></span>
+                            <span class="favorite-badge-view" id="favoriteBadgeView" style="display: none; margin-left: 8px;">
+                                <i class="fas fa-star"></i>
+                            </span>
+                        </span>
+                        <button class="close-photo-view" id="closePhotoViewBtn" style="background: transparent; border: none; color: var(--text); cursor: pointer; font-size: 1.2rem;">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
-                    
-                    <div class="photo-view-body">
-                        <div class="photo-zoom-container-view">
-                            <img src="" alt="" class="zoomable-photo-view" id="zoomablePhotoView" data-scale="1">
+                    <div class="section-card-content">
+                        <!-- Photo Body -->
+                        <div class="photo-view-body">
+                            <div class="photo-zoom-container-view">
+                                <img src="" alt="" class="zoomable-photo-view" id="zoomablePhotoView" data-scale="1">
+                            </div>
                         </div>
-                    </div>
-                    
-                    <div class="photo-view-footer">
-                        <div class="photo-view-actions">
+                        <!-- Description -->
+                        <div class="photo-description-container" style="margin-top: 8px;">
+                            <input type="text" class="photo-description-input-view" id="photoDescriptionInput" placeholder="Add a short description (max 100 chars)" maxlength="100" value="">
+                            <span class="description-char-count-view" id="descriptionCharCount">0/100</span>
+                        </div>
+                        <!-- Actions -->
+                        <div class="photo-view-actions" style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; justify-content: flex-end;">
                             <button class="btn-icon share-photo-view-btn" id="sharePhotoViewBtn" title="Share this photo">
                                 <i class="fas fa-share-alt"></i>
                             </button>
@@ -2119,74 +2055,129 @@ getPhotosHTML() {
                                 <i class="fas fa-download"></i>
                             </button>
                         </div>
-                    </div>
-                    
-                    <!-- Delete Confirmation Panel (Inline) -->
-                    <div class="photo-delete-panel" id="photoDeletePanel" style="display: none;">
-                        <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-                            <div style="
-                                width: 32px;
-                                height: 32px;
-                                background: rgba(239, 68, 68, 0.15);
-                                border-radius: 8px;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                            ">
-                                <span class="material-icons" style="color: var(--danger, #ef4444); font-size: 18px;">warning</span>
-                            </div>
-                            <div>
-                                <div style="color: var(--f-label); font-size: 0.85rem; font-weight: 500;">
-                                    Are you sure you want to delete this photo?
+                        
+                        <!-- Delete Confirmation Panel -->
+                        <div class="photo-delete-panel" id="photoDeletePanel" style="display: none; margin-top: 8px;">
+                            <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                                <div style="width: 32px; height: 32px; background: rgba(239, 68, 68, 0.15); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-exclamation-triangle" style="color:var(--danger, #ef4444); font-size:18px;"></i>
                                 </div>
-                                <div style="color: var(--text-secondary, #a0a0b0); font-size: 0.7rem; margin-top: 2px;">
-                                    secondary massages*
+                                <div>
+                                    <div style="color: var(--f-label); font-size: 0.85rem; font-weight: 500;">
+                                        Are you sure you want to delete this photo?
+                                    </div>
+                                    <div style="color: var(--text-secondary, #a0a0b0); font-size: 0.7rem; margin-top: 2px;">
+                                        This action cannot be undone.
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 4px;">
-                            <button type="button" class="btn btn-danger" id="confirmPhotoDeleteBtn"><i class="fas fa-trash"></i> Delete</button>
-                            <button type="button" class="btn btn-secondary" id="cancelPhotoDeleteBtn">Cancel</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Add to Album Panel (Inline) -->
-                    <div class="add-to-album-panel" id="addToAlbumPanel" style="display: none;">
-                        <div class="photo-confirmation-content-panel">
-                            <p>Select Album:</p>
-                            <div class="albums-list-view" id="albumsListView">
-                                <!-- Albums will be inserted here dynamically -->
+                            <div style="display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 4px;">
+                                <button type="button" class="btn btn-danger" id="confirmPhotoDeleteBtn"><i class="fas fa-trash"></i> Delete</button>
+                                <button type="button" class="btn btn-secondary" id="cancelPhotoDeleteBtn">Cancel</button>
                             </div>
                         </div>
-                        <div class="photo-confirmation-actions-panel">
-                            <button class="btn btn-primary" id="createNewAlbumViewBtn"><i class="fas fa-folder-plus"></i> Create New Album</button>
-                            <button class="btn btn-secondary" id="closeAddPanelBtn">Cancel</button>
+                        
+                        <!-- Add to Album Panel -->
+                        <div class="add-to-album-panel" id="addToAlbumPanel" style="display: none; margin-top: 8px;">
+                            <div class="photo-confirmation-content-panel">
+                                <p>Select Album:</p>
+                                <div class="albums-list-view" id="albumsListView">
+                                    <!-- Albums will be inserted here dynamically -->
+                                </div>
+                            </div>
+                            <div class="photo-confirmation-actions-panel" style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px;">
+                                <button class="btn btn-primary" id="createNewAlbumViewBtn"><i class="fas fa-folder-plus"></i> Create New Album</button>
+                                <button class="btn btn-secondary" id="closeAddPanelBtn">Cancel</button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="photos-grid grid-view" id="photosGrid">
-                <!-- Photos will be dynamically generated here -->
-            </div>
+                <!-- Photos Grid Section -->
+                <div class="section-card" id="photosGridSection">
+                    <div class="section-card-header">
+                        <div class="section-card-title">
+                            <i class="fas fa-images"></i>
+                            <span>Photos</span>
+                        </div>
+                        <div class="section-card-actions">
+                            <!-- Normal (Select) button -->
+                            <div class="batch-actions-group" id="normalActions">
+                                <button class="btn btn-icon" id="toggleBlurBtn" title="Disable blur effect">
+                                    <i class="fas fa-eye-slash" id="blurToggleIcon"></i>
+                                </button>
+                                <button class="btn btn-icon" id="batchModeBtn" title="Select multiple photos">
+                                    <i class="fas fa-check-square"></i> Select
+                                </button>
+                            </div>
+                            <!-- Batch actions (hidden by default) -->
+                            <div class="batch-actions-group" id="batchActions" style="display: none;">
+                                <span class="selection-count" id="selectionCount">No photos selected</span>
+                                <button class="btn btn-primary" id="selectAllBtn" title="Select all photos">
+                                    <i class="fas fa-check-double"></i> All
+                                </button>
+                                <button class="btn btn-danger" id="batchDeleteBtn" disabled>
+                                    <i class="fas fa-trash-alt"></i> Delete Selected
+                                </button>
+                                <button class="btn btn-secondary" id="cancelBatchBtn">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="section-card-content">
+                        <!-- Batch Delete Confirmation Panel (inline) -->
+                        <div class="batch-delete-panel" id="confirmBatchDelete" style="display: none;">
+                            <div class="batch-confirmation-content">
+                                <div class="batch-delete-warning">
+                                    <div style="width:32px;height:32px;background:rgba(239,68,68,0.15);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                                        <i class="fas fa-exclamation-triangle" style="color:var(--danger, #ef4444); font-size:18px;"></i>
+                                    </div>
+                                    <span id="deleteMessage"></span>
+                                </div>
+                                <div class="batch-confirmation-actions">
+                                    <button class="btn btn-danger" id="confirmBatchDeleteBtn"><i class="fas fa-trash"></i> Delete</button>
+                                    <button class="btn btn-secondary" id="cancelBatchDeleteBtn"> Cancel</button>
+                                </div>
+                            </div>
+                        </div>
 
-            <div class="empty-state" id="emptyState" style="display: none;">
-                <i class="fas fa-images empty-state-icon"></i>
-                <h3>No Photos Yet</h3>
-                <p>Start by uploading your first photo to build your library</p>
-                <button class="btn btn-primary" id="uploadFirstPhotosBtn">
-                    <i class="fas fa-cloud-upload-alt"></i> Upload Your First Photos
-                </button>
+                        <!-- Photos Grid -->
+                        <div class="photos-grid grid-view" id="photosGrid">
+                            <!-- Photos will be dynamically generated here -->
+                        </div>
+
+                        <!-- Empty State -->
+                        <div class="empty-state" id="emptyState" style="display: none;">
+                            <i class="fas fa-images empty-state-icon"></i>
+                            <h3>No Photos Yet</h3>
+                            <p>Start by uploading your first photo to build your library</p>
+                            <button class="btn btn-primary" id="uploadFirstPhotosBtn">
+                                <i class="fas fa-cloud-upload-alt"></i> Upload Your First Photos
+                            </button>
+                        </div>
+                    </div>
+                    <div class="section-card-footer">
+                        <p class="section-description">Your photos are grouped by date for easy browsing</p>
+                    </div>
+                </div>
+
+                <div class="empty-state" id="emptyState" style="display: none;">
+                    <i class="fas fa-images empty-state-icon"></i>
+                    <h3>No Photos Yet</h3>
+                    <p>Start by uploading your first photo to build your library</p>
+                    <button class="btn btn-primary" id="uploadFirstPhotosBtn">
+                        <i class="fas fa-cloud-upload-alt"></i> Upload Your First Photos
+                    </button>
+                </div>
             </div>
-        </div>
-    `;
-}
+        `;
+    }
 
     // Event attachment
     attachEventListeners() {
-        document.getElementById('uploadPhotosBtn')?.addEventListener('click', () => this.openUploadSection());
+        document.getElementById('uploadPhotosBtn')?.addEventListener('click', () => this.triggerFilePicker());
         document.getElementById('uploadFirstPhotosBtn')?.addEventListener('click', () => this.openUploadSection());
-        document.getElementById('browseFilesBtn')?.addEventListener('click', () => document.getElementById('photoInput').click());
         document.getElementById('startUploadBtn')?.addEventListener('click', () => this.handleFileUpload());
         document.getElementById('cancelUploadBtn')?.addEventListener('click', () => this.closeUploadSection());
         document.getElementById('photoInput')?.addEventListener('change', (e) => this.handleFileSelect(e));
@@ -2467,22 +2458,6 @@ getPhotosHTML() {
         if (activeCard) {
             activeCard.classList.add('active');
         }
-        
-        this.updateViewInfo();
-    }
-
-    updateViewInfo() {
-        const viewInfo = document.getElementById('viewInfo');
-        if (viewInfo) {
-            const album = this.albums.find(a => a.id.toString() === this.currentFilter.toString());
-            const filterName = album ? album.name : 'Home';
-            const photoCount = this.getFilteredPhotos().length;
-            viewInfo.textContent = `${photoCount} photo${photoCount !== 1 ? 's' : ''}`;
-            
-            if (album && album.description) {
-                viewInfo.title = album.description;
-            }
-        }
     }
 
     // Empty state message
@@ -2513,14 +2488,86 @@ getPhotosHTML() {
 
 
     // ========== MODAL CONTROLS ==========
+// ========== MODAL CONTROLS ==========
 
-    openUploadSection() {
-        const uploadSection = document.getElementById('uploadSection');
-        if (uploadSection) {
-            uploadSection.style.display = 'flex';
-            this.resetUploadForm();
-        }
+openUploadSection(reset = true) {
+    const uploadSection = document.getElementById('uploadSection');
+    if (uploadSection) {
+        uploadSection.style.display = 'block';
+        if (reset) this.resetUploadForm();
     }
+}
+
+triggerFilePicker() {
+    const input = document.getElementById('photoInput');
+    if (input) input.click();
+}
+
+// ========== FILE SELECTION ==========
+
+handleFileSelect(e) {
+    const files = Array.from(e.target.files || e.dataTransfer?.files || []);
+    
+    if (files.length === 0) return;
+    
+    // Check total photo limit
+    if (this.photos.length + files.length > this.uploadLimits.maxTotalPhotos) {
+        const remaining = this.uploadLimits.maxTotalPhotos - this.photos.length;
+        this.showNotification(
+            `Cannot upload ${files.length} photos. You can only upload ${remaining} more photos. Maximum limit is ${this.uploadLimits.maxTotalPhotos} photos.`,
+            'error'
+        );
+        return;
+    }
+    
+    // Check max files per upload
+    if (files.length > this.uploadLimits.maxFilesPerUpload) {
+        this.showNotification(
+            `Too many files. You can upload maximum ${this.uploadLimits.maxFilesPerUpload} files at once.`,
+            'error'
+        );
+        return;
+    }
+    
+    // Check individual file sizes
+    const oversizedFiles = [];
+    files.forEach(file => {
+        const fileSizeMB = file.size / (1024 * 1024);
+        if (fileSizeMB > this.uploadLimits.maxFileSizeMB) {
+            oversizedFiles.push(`${file.name} (${fileSizeMB.toFixed(1)}MB)`);
+        }
+    });
+    
+    if (oversizedFiles.length > 0) {
+        this.showNotification(
+            `Files too large (max ${this.uploadLimits.maxFileSizeMB}MB each): ${oversizedFiles.join(', ')}`,
+            'error'
+        );
+        return;
+    }
+    
+    // Check file types
+    const invalidFiles = [];
+    files.forEach(file => {
+        if (!file.type.startsWith('image/')) {
+            invalidFiles.push(file.name);
+        }
+    });
+    
+    if (invalidFiles.length > 0) {
+        this.showNotification(
+            `Invalid file type. Please upload images only: ${invalidFiles.join(', ')}`,
+            'error'
+        );
+        return;
+    }
+    
+    // All checks passed – show upload section and preview
+    this.selectedFiles = files;
+    this.updateFileSelectionCount();  // update badge count
+    this.openUploadSection(false);
+    this.showFilePreview(files);
+}
 
     closeUploadSection() {
         const uploadSection = document.getElementById('uploadSection');
@@ -2530,263 +2577,252 @@ getPhotosHTML() {
         }
     }
 
-    resetUploadForm() {
-        const filePreview = document.getElementById('filePreview');
-        const uploadProgress = document.getElementById('uploadProgress');
-        const startUploadBtn = document.getElementById('startUploadBtn');
-        const photoInput = document.getElementById('photoInput');
-        const progressFill = document.getElementById('progressFill');
-        const progressPercent = document.getElementById('progressPercent');
-
-        if (filePreview) {
-            filePreview.innerHTML = '';
-            filePreview.style.display = 'none';
-        }
-        if (uploadProgress) uploadProgress.style.display = 'none';
-        if (startUploadBtn) startUploadBtn.style.display = 'none';
-        if (photoInput) photoInput.value = '';
-        if (progressFill) progressFill.style.width = '0%';
-        if (progressPercent) progressPercent.textContent = '0%';
+    // Updated openAlbumModal method - removed photo selection
+    openAlbumModal(albumId = null) {
+        const albumModal = document.getElementById('albumModal');
+        const modalTitle = document.getElementById('albumModalTitle');
+        const saveAlbumBtn = document.getElementById('saveAlbumBtn');
+        const deleteAlbumBtn = document.getElementById('deleteAlbumBtn');
+        const deleteConfirm = document.getElementById('albumDeleteConfirm');
         
-        this.selectedFiles = null;
-    }
-
-// Updated openAlbumModal method - removed photo selection
-openAlbumModal(albumId = null) {
-    const albumModal = document.getElementById('albumModal');
-    const modalTitle = document.getElementById('albumModalTitle');
-    const saveAlbumBtn = document.getElementById('saveAlbumBtn');
-    const deleteAlbumBtn = document.getElementById('deleteAlbumBtn');
-    const deleteConfirm = document.getElementById('albumDeleteConfirm');
-    
-    if (albumModal) {
-        albumModal.style.display = 'block';
-        
-        // Hide inline delete confirmation initially
-        if (deleteConfirm) {
-            deleteConfirm.style.display = 'none';
-        }
-        
-        this.editingAlbumId = albumId;
-        const isEditing = albumId !== null;
-        
-        if (modalTitle) {
-            modalTitle.textContent = isEditing ? 'Manage Album' : 'Create New Album';
-        }
-        
-        if (saveAlbumBtn) {
-            saveAlbumBtn.innerHTML = isEditing ? '<i class="fas fa-save"></i> Update Album' : '<i class="fas fa-folder-plus"></i> Create Album';
-        }
-        
-        // Show/hide delete button based on edit mode
-        if (deleteAlbumBtn) {
-            deleteAlbumBtn.style.display = isEditing ? 'inline-flex' : 'none';
-        }
-        
-        // Show informative message instead of photo selection
-        const infoMessage = document.createElement('div');
-        infoMessage.className = 'no-photos-message';
-        infoMessage.innerHTML = `
-            <i class="fas fa-info-circle"></i>
-            <p>Photos cannot be added to albums during creation.</p>
-            <p>After creating the album, go to a photo and use the "Add to Album" option.</p>
-        `;
-        
-        if (isEditing) {
-            const album = this.albums.find(a => a.id === albumId);
-            if (album) {
+        if (albumModal) {
+            albumModal.style.display = 'block';
+            
+            // Hide inline delete confirmation initially
+            if (deleteConfirm) {
+                deleteConfirm.style.display = 'none';
+            }
+            
+            this.editingAlbumId = albumId;
+            const isEditing = albumId !== null;
+            
+            if (modalTitle) {
+                modalTitle.textContent = isEditing ? 'Manage Album' : 'Create New Album';
+            }
+            
+            if (saveAlbumBtn) {
+                saveAlbumBtn.innerHTML = isEditing ? '<i class="fas fa-save"></i> Update Album' : '<i class="fas fa-folder-plus"></i> Create Album';
+            }
+            
+            // Show/hide delete button based on edit mode
+            if (deleteAlbumBtn) {
+                deleteAlbumBtn.style.display = isEditing ? 'inline-flex' : 'none';
+            }
+            
+            // Show informative message instead of photo selection
+            const infoMessage = document.createElement('div');
+            infoMessage.className = 'no-photos-message';
+            infoMessage.innerHTML = `
+                <i class="fas fa-info-circle"></i>
+                <p>Photos cannot be added to albums during creation.</p>
+                <p>After creating the album, go to a photo and use the "Add to Album" option.</p>
+            `;
+            
+            if (isEditing) {
+                const album = this.albums.find(a => a.id === albumId);
+                if (album) {
+                    const albumNameInput = document.getElementById('albumName');
+                    const albumDescriptionInput = document.getElementById('albumDescription');
+                    
+                    if (albumNameInput) albumNameInput.value = album.name;
+                    if (albumDescriptionInput) albumDescriptionInput.value = album.description || '';
+                }
+            } else {
                 const albumNameInput = document.getElementById('albumName');
                 const albumDescriptionInput = document.getElementById('albumDescription');
                 
-                if (albumNameInput) albumNameInput.value = album.name;
-                if (albumDescriptionInput) albumDescriptionInput.value = album.description || '';
+                if (albumNameInput) albumNameInput.value = '';
+                if (albumDescriptionInput) albumDescriptionInput.value = '';
             }
-        } else {
-            const albumNameInput = document.getElementById('albumName');
-            const albumDescriptionInput = document.getElementById('albumDescription');
+
+            const modalIcon = document.getElementById('albumModalIcon');
+            const modalBadge = document.getElementById('albumModalBadge');
+
+            if (modalIcon) {
+                modalIcon.className = isEditing ? 'fas fa-edit' : 'fas fa-folder-plus';
+            }
+            if (modalBadge) {
+                modalBadge.textContent = isEditing ? 'Manage' : 'New';
+            }
             
-            if (albumNameInput) albumNameInput.value = '';
-            if (albumDescriptionInput) albumDescriptionInput.value = '';
-        }
-        
-        // Setup delete album button to show inline confirmation
-        if (deleteAlbumBtn) {
-            const newDeleteBtn = deleteAlbumBtn.cloneNode(true);
-            deleteAlbumBtn.parentNode.replaceChild(newDeleteBtn, deleteAlbumBtn);
-            
-            newDeleteBtn.addEventListener('click', () => {
-                if (this.editingAlbumId) {
-                    newDeleteBtn.style.display = 'none';
-                    if (deleteConfirm) {
-                        deleteConfirm.style.display = 'block';
-                    }
-                }
-            });
-        }
-        
-        // Setup confirm delete button
-        const confirmDeleteBtn = document.getElementById('confirmAlbumDeleteBtn');
-        if (confirmDeleteBtn) {
-            const newConfirmBtn = confirmDeleteBtn.cloneNode(true);
-            confirmDeleteBtn.parentNode.replaceChild(newConfirmBtn, confirmDeleteBtn);
-            
-            newConfirmBtn.addEventListener('click', async () => {
-                if (this.editingAlbumId) {
-                    const album = this.albums.find(a => a.id === this.editingAlbumId);
-                    if (album) {
-                        newConfirmBtn.disabled = true;
-                        newConfirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
-                        
-                        await this.deleteAlbumFromFirebase(this.editingAlbumId);
-                        
-                        if (this.currentFilter === this.editingAlbumId) {
-                            this.currentFilter = 'home';
-                            const currentFilterTitle = document.getElementById('currentFilterTitle');
-                            const manageAlbumBtn = document.getElementById('manageAlbumBtn');
-                            if (currentFilterTitle) currentFilterTitle.textContent = 'Home';
-                            if (manageAlbumBtn) manageAlbumBtn.style.display = 'none';
+            // Setup delete album button to show inline confirmation
+            if (deleteAlbumBtn) {
+                const newDeleteBtn = deleteAlbumBtn.cloneNode(true);
+                deleteAlbumBtn.parentNode.replaceChild(newDeleteBtn, deleteAlbumBtn);
+                
+                newDeleteBtn.addEventListener('click', () => {
+                    if (this.editingAlbumId) {
+                        newDeleteBtn.style.display = 'none';
+                        if (deleteConfirm) {
+                            deleteConfirm.style.display = 'block';
                         }
-                        
-                        this.updateSystemAlbumCounts();
-                        this.renderPhotosGrid();
-                        this.renderAlbumsGrid();
-                        this.updatePhotoCountBadge();
-                        
-                        this.showNotification(`Album "${album.name}" deleted successfully`);
-                        
-                        this.closeAlbumModal();
                     }
-                }
-            });
-        }
-        
-        // Setup cancel delete button
-        const cancelDeleteBtn = document.getElementById('cancelAlbumDeleteBtn');
-        if (cancelDeleteBtn) {
-            const newCancelBtn = cancelDeleteBtn.cloneNode(true);
-            cancelDeleteBtn.parentNode.replaceChild(newCancelBtn, cancelDeleteBtn);
-            
-            newCancelBtn.addEventListener('click', () => {
-                if (deleteConfirm) {
-                    deleteConfirm.style.display = 'none';
-                }
-                if (deleteAlbumBtn) {
-                    deleteAlbumBtn.style.display = 'inline-flex';
-                }
-            });
-        }
-    }
-}
-
-// Updated createAlbum method - removed photo selection dependency
-async createAlbum() {
-    const albumName = document.getElementById('albumName')?.value.trim();
-    const description = document.getElementById('albumDescription')?.value.trim();
-
-    if (!albumName) {
-        this.showNotification('Please enter an album name', 'error');
-        return;
-    }
-
-    if (albumName.includes(' ')) {
-        this.showNotification('Album name must be a single word (no spaces allowed)', 'error');
-        return;
-    }
-
-    if (albumName.length > 12) {
-        this.showNotification('Album name must be 12 characters or less', 'error');
-        return;
-    }
-
-    const isEditing = this.editingAlbumId !== null;
-    
-    if (isEditing) {
-        const album = this.albums.find(a => a.id === this.editingAlbumId);
-        
-        if (album && !album.isSystemAlbum) {
-            const nameConflict = this.albums.some(a => 
-                a.id !== this.editingAlbumId && 
-                a.name.toLowerCase() === albumName.toLowerCase() &&
-                !a.isSystemAlbum
-            );
-            
-            if (nameConflict) {
-                this.showNotification('An album with this name already exists', 'error');
-                return;
+                });
             }
             
-            album.name = albumName;
-            album.description = description || '';
-            // Keep existing photos when editing
-            album.lastModified = Date.now();
+            // Setup confirm delete button
+            const confirmDeleteBtn = document.getElementById('confirmAlbumDeleteBtn');
+            if (confirmDeleteBtn) {
+                const newConfirmBtn = confirmDeleteBtn.cloneNode(true);
+                confirmDeleteBtn.parentNode.replaceChild(newConfirmBtn, confirmDeleteBtn);
+                
+                newConfirmBtn.addEventListener('click', async () => {
+                    if (this.editingAlbumId) {
+                        const album = this.albums.find(a => a.id === this.editingAlbumId);
+                        if (album) {
+                            newConfirmBtn.disabled = true;
+                            newConfirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+                            
+                            await this.deleteAlbumFromFirebase(this.editingAlbumId);
+                            
+                            if (this.currentFilter === this.editingAlbumId) {
+                                this.currentFilter = 'home';
+                                const currentFilterTitle = document.getElementById('currentFilterTitle');
+                                const manageAlbumBtn = document.getElementById('manageAlbumBtn');
+                                if (currentFilterTitle) currentFilterTitle.textContent = 'Home';
+                                if (manageAlbumBtn) manageAlbumBtn.style.display = 'none';
+                            }
+                            
+                            this.updateSystemAlbumCounts();
+                            this.renderPhotosGrid();
+                            this.renderAlbumsGrid();
+                            this.updatePhotoCountBadge();
+                            
+                            this.showNotification(`Album "${album.name}" deleted successfully`);
+                            
+                            this.closeAlbumModal();
+                        }
+                    }
+                });
+            }
             
-            await this.saveAlbumToFirebase(album);
-            
-            this.showNotification(`Album "${albumName}" updated successfully!`);
+            // Setup cancel delete button
+            const cancelDeleteBtn = document.getElementById('cancelAlbumDeleteBtn');
+            if (cancelDeleteBtn) {
+                const newCancelBtn = cancelDeleteBtn.cloneNode(true);
+                cancelDeleteBtn.parentNode.replaceChild(newCancelBtn, cancelDeleteBtn);
+                
+                newCancelBtn.addEventListener('click', () => {
+                    if (deleteConfirm) {
+                        deleteConfirm.style.display = 'none';
+                    }
+                    if (deleteAlbumBtn) {
+                        deleteAlbumBtn.style.display = 'inline-flex';
+                    }
+                });
+            }
         }
-    } else {
-        if (this.albums.some(a => 
-            a.name.toLowerCase() === albumName.toLowerCase() && 
-            !a.isSystemAlbum
-        )) {
-            this.showNotification('An album with this name already exists', 'error');
+    }
+
+    // Updated createAlbum method - removed photo selection dependency
+    async createAlbum() {
+        const albumName = document.getElementById('albumName')?.value.trim();
+        const description = document.getElementById('albumDescription')?.value.trim();
+
+        if (!albumName) {
+            this.showNotification('Please enter an album name', 'error');
             return;
         }
 
-        const newAlbum = {
-            id: this.generateAlbumId(),
-            name: albumName,
-            description: description || '',
-            count: 0, // Start with 0 photos
-            icon: 'fas fa-folder',
-            color: this.getRandomColor(),
-            photos: [], // Start with empty array
-            createdDate: new Date().toISOString(),
-            isSystemAlbum: false,
-            lastModified: Date.now()
-        };
+        if (albumName.includes(' ')) {
+            this.showNotification('Album name must be a single word (no spaces allowed)', 'error');
+            return;
+        }
 
-        await this.saveAlbumToFirebase(newAlbum);
+        if (albumName.length > 12) {
+            this.showNotification('Album name must be 12 characters or less', 'error');
+            return;
+        }
+
+        const isEditing = this.editingAlbumId !== null;
         
-        this.showNotification(`Album "${albumName}" created successfully! Add photos by clicking on a photo and using "Add to Album".`);
-    }
-    
-    this.renderAlbumsGrid();
-    this.closeAlbumModal();
-    this.editingAlbumId = null;
-}
+        if (isEditing) {
+            const album = this.albums.find(a => a.id === this.editingAlbumId);
+            
+            if (album && !album.isSystemAlbum) {
+                const nameConflict = this.albums.some(a => 
+                    a.id !== this.editingAlbumId && 
+                    a.name.toLowerCase() === albumName.toLowerCase() &&
+                    !a.isSystemAlbum
+                );
+                
+                if (nameConflict) {
+                    this.showNotification('An album with this name already exists', 'error');
+                    return;
+                }
+                
+                album.name = albumName;
+                album.description = description || '';
+                // Keep existing photos when editing
+                album.lastModified = Date.now();
+                
+                await this.saveAlbumToFirebase(album);
+                
+                this.showNotification(`Album "${albumName}" updated successfully!`);
+            }
+        } else {
+            if (this.albums.some(a => 
+                a.name.toLowerCase() === albumName.toLowerCase() && 
+                !a.isSystemAlbum
+            )) {
+                this.showNotification('An album with this name already exists', 'error');
+                return;
+            }
 
-// Updated closeAlbumModal
-closeAlbumModal() {
-    const albumModal = document.getElementById('albumModal');
-    const albumNameInput = document.getElementById('albumName');
-    const albumDescriptionInput = document.getElementById('albumDescription');
-    const deleteConfirm = document.getElementById('albumDeleteConfirm');
-    const deleteAlbumBtn = document.getElementById('deleteAlbumBtn');
-    
-    if (albumModal) {
-        albumModal.style.display = 'none';
-        // Reset delete confirmation
-        if (deleteConfirm) {
-            deleteConfirm.style.display = 'none';
-        }
-        if (deleteAlbumBtn && this.editingAlbumId) {
-            deleteAlbumBtn.style.display = 'inline-flex';
-        }
-    }
-    if (albumNameInput) albumNameInput.value = '';
-    if (albumDescriptionInput) albumDescriptionInput.value = '';
-    
-    this.editingAlbumId = null;
-}
+            const newAlbum = {
+                id: this.generateAlbumId(),
+                name: albumName,
+                description: description || '',
+                count: 0, // Start with 0 photos
+                icon: 'fas fa-folder',
+                color: this.getRandomColor(),
+                photos: [], // Start with empty array
+                createdDate: new Date().toISOString(),
+                isSystemAlbum: false,
+                lastModified: Date.now()
+            };
 
-closeDeleteModal() {
-    const modal = document.getElementById('confirmBatchDelete');
-    if (modal) {
-        modal.style.display = 'none';
+            await this.saveAlbumToFirebase(newAlbum);
+            
+            this.showNotification(`Album "${albumName}" created successfully! Add photos by clicking on a photo and using "Add to Album".`);
+        }
+        
+        this.renderAlbumsGrid();
+        this.closeAlbumModal();
+        this.editingAlbumId = null;
     }
-    this.itemToDelete = null;
-}
+
+    // Updated closeAlbumModal
+    closeAlbumModal() {
+        const albumModal = document.getElementById('albumModal');
+        const albumNameInput = document.getElementById('albumName');
+        const albumDescriptionInput = document.getElementById('albumDescription');
+        const deleteConfirm = document.getElementById('albumDeleteConfirm');
+        const deleteAlbumBtn = document.getElementById('deleteAlbumBtn');
+        
+        if (albumModal) {
+            albumModal.style.display = 'none';
+            // Reset delete confirmation
+            if (deleteConfirm) {
+                deleteConfirm.style.display = 'none';
+            }
+            if (deleteAlbumBtn && this.editingAlbumId) {
+                deleteAlbumBtn.style.display = 'inline-flex';
+            }
+        }
+        if (albumNameInput) albumNameInput.value = '';
+        if (albumDescriptionInput) albumDescriptionInput.value = '';
+        
+        this.editingAlbumId = null;
+    }
+
+    closeDeleteModal() {
+        const modal = document.getElementById('confirmBatchDelete');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        this.itemToDelete = null;
+    }
 
 
     // ========== BATCH MODE ==========
@@ -2865,141 +2901,153 @@ closeDeleteModal() {
 
     // ========== FILE SELECTION ==========
 
-    showFilePreview(files) {
-        const filePreview = document.getElementById('filePreview');
-        const startUploadBtn = document.getElementById('startUploadBtn');
-        
-        filePreview.innerHTML = '';
-        filePreview.style.display = 'block';
-        
-        files.forEach((file, index) => {
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const previewItem = document.createElement('div');
-                    previewItem.className = 'preview-item';
-                    previewItem.innerHTML = `
-                        <img src="${e.target.result}" alt="${file.name}">
-                        <div class="photo-preview-info">
-                            <span class="preview-name">${file.name}</span>
-                            <span class="preview-size">${this.formatFileSize(file.size)}</span>
-                        </div>
-                    `;
-                    filePreview.appendChild(previewItem);
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-        
-        if (startUploadBtn) {
-            startUploadBtn.style.display = 'block';
-        }
+showFilePreview(files) {
+    const filePreviewGrid = document.getElementById('filePreviewGrid');
+    const filePreviewCount = document.getElementById('filePreviewCount');
+    const fileSelectionInfo = document.getElementById('fileSelectionInfo');
+    const startUploadBtn = document.getElementById('startUploadBtn');
+    const filePreviewContainer = document.getElementById('filePreview');
+
+    if (!filePreviewGrid) return;
+
+    // Clear previous previews
+    filePreviewGrid.innerHTML = '';
+    filePreviewContainer.style.display = 'block';
+
+    // Update counts
+    const count = files.length;
+    const maxFiles = this.uploadLimits.maxFilesPerUpload;
+    if (filePreviewCount) {
+        filePreviewCount.textContent = `${count} file${count !== 1 ? 's' : ''}`;
+    }
+    if (fileSelectionInfo) {
+        fileSelectionInfo.textContent = `${count} / ${maxFiles} files selected`;
     }
 
-     // Handle file selection
-    handleFileSelect(e) {
-        const files = Array.from(e.target.files || e.dataTransfer?.files || []);
-        
-        if (files.length === 0) return;
-        
-        // Check if adding these files would exceed total limit
-        if (this.photos.length + files.length > this.uploadLimits.maxTotalPhotos) {
-            const remaining = this.uploadLimits.maxTotalPhotos - this.photos.length;
-            this.showNotification(
-                `Cannot upload ${files.length} photos. You can only upload ${remaining} more photos. Maximum limit is ${this.uploadLimits.maxTotalPhotos} photos.`,
-                'error'
-            );
-            return;
-        }
-        
-        // Check max files per upload
-        if (files.length > this.uploadLimits.maxFilesPerUpload) {
-            this.showNotification(
-                `Too many files. You can upload maximum ${this.uploadLimits.maxFilesPerUpload} files at once.`,
-                'error'
-            );
-            return;
-        }
-        
-        // Check individual file sizes
-        const oversizedFiles = [];
-        files.forEach(file => {
-            const fileSizeMB = file.size / (1024 * 1024);
-            if (fileSizeMB > this.uploadLimits.maxFileSizeMB) {
-                oversizedFiles.push(`${file.name} (${fileSizeMB.toFixed(1)}MB)`);
-            }
-        });
-        
-        if (oversizedFiles.length > 0) {
-            this.showNotification(
-                `Files too large (max ${this.uploadLimits.maxFileSizeMB}MB each): ${oversizedFiles.join(', ')}`,
-                'error'
-            );
-            return;
-        }
-        
-        // Check file types
-        const invalidFiles = [];
-        files.forEach(file => {
-            if (!file.type.startsWith('image/')) {
-                invalidFiles.push(file.name);
-            }
-        });
-        
-        if (invalidFiles.length > 0) {
-            this.showNotification(
-                `Invalid file type. Please upload images only: ${invalidFiles.join(', ')}`,
-                'error'
-            );
-            return;
-        }
-        
-        // All checks passed
-        this.showFilePreview(files);
-        this.selectedFiles = files;
-    }
+    files.forEach((file) => {
+        if (!file.type.startsWith('image/')) return;
 
-    setupDragAndDrop() {
-        const uploadArea = document.getElementById('photoUploadArea');
-        if (uploadArea) {
-            uploadArea.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                uploadArea.classList.add('drag-over');
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const previewItem = document.createElement('div');
+            previewItem.className = 'file-preview-item';
+
+            previewItem.innerHTML = `
+                <img src="${e.target.result}" alt="${file.name}" class="preview-thumbnail">
+                <div class="preview-info">
+                    <span class="preview-name">${this.escapeHtml(file.name)}</span>
+                    <span class="preview-size">${this.formatFileSize(file.size)}</span>
+                </div>
+                <button class="preview-remove" data-filename="${file.name}" title="Remove file">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+
+            // Optional: add remove functionality per file
+            const removeBtn = previewItem.querySelector('.preview-remove');
+            removeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.removePreviewFile(file, previewItem);
             });
 
-            uploadArea.addEventListener('dragleave', () => {
-                uploadArea.classList.remove('drag-over');
-            });
+            filePreviewGrid.appendChild(previewItem);
+        };
+        reader.readAsDataURL(file);
+    });
 
-            uploadArea.addEventListener('drop', (e) => {
-                e.preventDefault();
-                uploadArea.classList.remove('drag-over');
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    this.handleFileSelect({ target: { files } });
-                }
-            });
-        }
-    }
-
-   
-    // ========== UTILITIES ==========
-
-// ========== UTILITIES ==========
-
-// Show notification using the bottom info bar
-// From photos-module.js - showNotification method
-// ========== UTILITIES ==========
-// Backward compatibility wrapper
-showNotification(message, type = 'success') {
-    if (window.toastManager) {
-        window.toastManager.show(message, type);
-    } else {
-        console.log(`[${type.toUpperCase()}] ${message}`);
+    if (startUploadBtn) {
+        startUploadBtn.style.display = 'block';
     }
 }
 
+removePreviewFile(fileToRemove, itemElement) {
+    // Remove from selectedFiles array
+    this.selectedFiles = this.selectedFiles.filter(f => f !== fileToRemove);
+    // Remove DOM element
+    if (itemElement && itemElement.parentNode) {
+        itemElement.remove();
+    }
+    // Update counts
+    this.updateFileSelectionCount();
+    // Hide preview if no files left
+    if (this.selectedFiles.length === 0) {
+        document.getElementById('filePreview').style.display = 'none';
+        document.getElementById('startUploadBtn').style.display = 'none';
+    }
+}
 
+updateFileSelectionCount() {
+    const count = this.selectedFiles ? this.selectedFiles.length : 0;
+    const maxFiles = this.uploadLimits.maxFilesPerUpload;
+    const filePreviewCount = document.getElementById('filePreviewCount');
+    const fileSelectionInfo = document.getElementById('fileSelectionInfo');
+
+    if (filePreviewCount) {
+        filePreviewCount.textContent = `${count} file${count !== 1 ? 's' : ''}`;
+    }
+    if (fileSelectionInfo) {
+        fileSelectionInfo.textContent = `${count} / ${maxFiles} files selected`;
+    }
+}
+
+resetUploadForm() {
+    const filePreviewGrid = document.getElementById('filePreviewGrid');
+    const filePreview = document.getElementById('filePreview');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const startUploadBtn = document.getElementById('startUploadBtn');
+    const photoInput = document.getElementById('photoInput');
+    const progressFill = document.getElementById('progressFill');
+    const progressPercent = document.getElementById('progressPercent');
+
+    if (filePreviewGrid) filePreviewGrid.innerHTML = '';
+    if (filePreview) filePreview.style.display = 'none';
+    if (uploadProgress) uploadProgress.style.display = 'none';
+    if (startUploadBtn) startUploadBtn.style.display = 'none';
+    if (photoInput) photoInput.value = '';
+    if (progressFill) progressFill.style.width = '0%';
+    if (progressPercent) progressPercent.textContent = '0%';
+
+    // Reset file count display
+    this.updateFileSelectionCount(); // sets to "0 / X files selected"
+    this.selectedFiles = null;
+}
+
+
+setupDragAndDrop() {
+    const uploadSection = document.getElementById('uploadSection');
+    if (!uploadSection) return;
+    const dropTarget = uploadSection.querySelector('.section-card-content');
+    if (!dropTarget) return;
+
+    dropTarget.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropTarget.classList.add('drag-over');
+    });
+
+    dropTarget.addEventListener('dragleave', () => {
+        dropTarget.classList.remove('drag-over');
+    });
+
+    dropTarget.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropTarget.classList.remove('drag-over');
+        const files = e.dataTransfer.files;
+        if (files.length) {
+            this.handleFileSelect({ target: { files } });
+        }
+    });
+}
+   
+    // ========== UTILITIES ==========
+
+    // Show notification using the bottom info bar
+    showNotification(message, type = 'success') {
+        if (window.toastManager) {
+            window.toastManager.show(message, type);
+        } else {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+    }
 
     // Check and show limit warning
     checkAndShowLimitWarning() {

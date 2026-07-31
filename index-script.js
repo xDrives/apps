@@ -10,8 +10,7 @@ class xDriveApp {
         this.generalModules = ['emoji-art', 'text-repeater'];
         
         // Define secure modules (require account password)
-        this.secureModules = ['photos', 'settings'];
-        //this.secureModules = ['photos', 'notes', 'share', 'credential', 'settings'];
+        this.secureModules = [ 'photos', 'credential', 'settings'];
         
         // Track secure access state
         this.secureVaultUnlocked = false;
@@ -30,13 +29,10 @@ class xDriveApp {
         // Home module properties
         this.modules = [
             { id: 'photos', name: 'Photos', icon: 'photo_library', color: 'secondary', description: 'Secure photo storage', category: 'secure' },
-            //{ id: 'notes', name: 'Notes', icon: 'notes', color: 'secondary', description: 'Secure encrypted notes', category: 'secure' },
-            //{ id: 'credentials', name: 'Credentials', icon: 'vpn_key', color: 'secondary', description: 'Password manager', category: 'secure' },
-            //{ id: 'share', name: 'Share', icon: 'share', color: 'secondary', description: 'Share content securely', category: 'secure' }, 
+            { id: 'credentials', name: 'Credentials', icon: 'vpn_key', color: 'secondary', description: 'Password manager', category: 'secure' },
             { id: 'settings', name: 'Settings', icon: 'settings', color: 'secondary', description: 'Account & security', category: 'secure' },
             { id: 'emoji-art', name: 'Emoji Art', icon: 'emoji_emotions', color: 'primary', description: 'Create emoji art', category: 'general' },
-            { id: 'text-repeater', name: 'Text Repeater', icon: 'repeat', color: 'primary', description: 'Pattern text generator', category: 'general' }
-            
+            { id: 'text-repeater', name: 'Text Repeater', icon: 'repeat', color: 'primary', description: 'Pattern text generator', category: 'general' },
         ];
         
         this.init();
@@ -70,8 +66,10 @@ class xDriveApp {
         }
     }
 
-    encodeEmail(email) {
-        return email.replace(/\./g, ',').replace(/@/g, '-at-');
+    encodePhone(phone) {
+        // Remove all non-digit characters except leading '+'
+        const cleaned = phone.replace(/[^\d+]/g, '');
+        return cleaned.replace(/\./g, ',').replace(/@/g, '-at-');
     }
 
     shouldShowNotification(notificationData) {
@@ -92,9 +90,9 @@ class xDriveApp {
                 notificationData.recipients : 
                 Object.values(notificationData.recipients);
             
-            const encodedEmail = this.encodeEmail(this.currentUser.email);
-            return recipients.includes(this.currentUser.email) || 
-                   recipients.includes(encodedEmail);
+            const encodedPhone = this.encodePhone(this.currentUser.phone);
+            return recipients.includes(this.currentUser.phone) || 
+                   recipients.includes(encodedPhone);
         }
         
         return false;
@@ -779,9 +777,6 @@ class xDriveApp {
             case 'photos-page':
                 if (typeof photosModule !== 'undefined') photosModule.render('photos-container');
                 break;
-            case 'notes-page':
-                if (typeof notesModule !== 'undefined') notesModule.render('notes-container');
-                break;
             case 'credentials-page':
                 if (typeof credentialManager !== 'undefined') credentialManager.render('credentials-container');
                 break;
@@ -796,9 +791,6 @@ class xDriveApp {
                     if (this.currentUser) settingsModule.setUserData(this.currentUser);
                     settingsModule.render('settings-container');
                 }
-                break;
-            case 'share-page':
-                if (typeof shareModule !== 'undefined') shareModule.render('share-container');
                 break;
         }
     }
